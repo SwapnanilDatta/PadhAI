@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.db.models import Q
 from .models import FriendRequest, Friendship, ChatRoom, Message, Meeting
+from teacher.models import Teacher
 import json
 
 def home(request):
@@ -27,12 +28,18 @@ def register(request):
 
 @login_required
 def dashboard(request):
+    is_teacher = Teacher.objects.filter(user=request.user).exists()
     friends = get_user_friends(request.user)
     pending_requests = FriendRequest.objects.filter(to_user=request.user, status='pending')
-    return render(request, 'meetings/dashboard.html', {
+    context = {
         'friends': friends,
-        'pending_requests': pending_requests
-    })
+        'pending_requests': pending_requests,
+        'is_teacher': is_teacher
+    }
+    if not is_teacher:
+        teachers = Teacher.objects.select_related('user').all()
+        context['teachers'] = teachers
+    return render(request, 'meetings/dashboard.html', context)
 
 @login_required
 def send_friend_request(request):
