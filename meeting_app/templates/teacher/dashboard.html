@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Teacher Dashboard{% endblock %}
+
+{% load form_tags %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Welcome, {{ teacher.user.username }}!</h3>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                    <div class="alert alert-success">
+                        {% for message in messages %}
+                        <p>{{ message }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    <ul class="nav nav-tabs" id="myTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button" role="tab" aria-controls="profile" aria-selected="true">Profile</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="edit-tab" data-bs-toggle="tab" data-bs-target="#edit" type="button" role="tab" aria-controls="edit" aria-selected="false">Edit Profile</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="myTabContent">
+                        <div class="tab-pane fade show active" id="profile" role="tabpanel" aria-labelledby="profile-tab">
+                            <div class="mt-3">
+                                <h5>Teacher Information</h5>
+                                <p><strong>Username:</strong> {{ teacher.user.username }}</p>
+                                <p><strong>Email:</strong> {{ teacher.user.email }}</p>
+                                <p><strong>Subject:</strong> {{ teacher.subject }}</p>
+                                <p><strong>Bio:</strong> {{ teacher.bio }}</p>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="edit" role="tabpanel" aria-labelledby="edit-tab">
+                            <div class="mt-3">
+                                <h5>Edit Profile</h5>
+                                <form method="post">
+                                    {% csrf_token %}
+                                    {% for field in form %}
+                                    <div class="form-group mb-3">
+                                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                        {{ field|add_class:"form-control" }}
+                                        {% if field.help_text %}
+                                        <small class="form-text text-muted">{{ field.help_text }}</small>
+                                        {% endif %}
+                                        {% for error in field.errors %}
+                                        <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endfor %}
+                                    <button type="submit" class="btn btn-primary">Update Profile</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">Chatbot</h4>
+                </div>
+                <div class="card-body">
+                    <p>Access the AI chatbot to get assistance with your teaching needs.</p>
+                    <a href="{% url 'teacher:chatbot' %}" class="btn btn-success">Go to Chatbot</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">Meetings</h4>
+                </div>
+                <div class="card-body">
+                    <p>Schedule and manage virtual meetings with students.</p>
+                    <a href="{% url 'teacher:meetings' %}" class="btn btn-info">Go to Meetings</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-12 text-center">
+            <a href="{% url 'teacher:profile' %}" class="btn btn-secondary me-2">Profile</a>
+            <a href="{% url 'teacher:logout' %}" class="btn btn-danger">Logout</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

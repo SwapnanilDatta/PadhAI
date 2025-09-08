@@ -1,0 +1,15 @@
+Django>=5.2.0
+channels>=4.0.0
+channels-redis>=4.1.0
+daphne>=4.0.0
+whitenoise>=6.5.0
+gunicorn>=21.2.0
+psycopg2-binary>=2.9.7
+redis>=4.6.0
+python-decouple>=3.8
+dj-database-url>=2.1.0
+langchain_groq
+langchain
+pillow
+google-generativeai
+python-dotenv

@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Start New Chat{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h1 class="h4 mb-0">Start a New Conversation</h1>
+            </div>
+            <div class="card-body">
+                <p class="card-text text-muted">Give your chat a title and choose how you'd like to begin.</p>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Chat Title</label>
+                        <input type="text" id="title" name="title" class="form-control" placeholder="e.g., Project Ideas, Research Help..." required>
+                    </div>
+
+                    <h5 class="h6 mt-4">Choose a starting point:</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-comment-alt fa-2x text-primary mb-2"></i>
+                                    <h6 class="card-title">Text Conversation</h6>
+                                    <p class="card-text small text-muted">Start with a simple text-based chat.</p>
+                                    <button type="submit" class="btn btn-primary stretched-link">Create Text Chat</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-image fa-2x text-primary mb-2"></i>
+                                    <h6 class="card-title">Image Analysis</h6>
+                                    <p class="card-text small text-muted">Upload an image and ask questions about it.</p>
+                                    <a href="{% url 'upload' %}" class="btn btn-outline-primary stretched-link">Upload Image</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center text-muted small">
+                <p class="mb-0">AI responses are generated and may not always be accurate.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

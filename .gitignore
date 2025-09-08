@@ -1,0 +1,39 @@
+# Python
+*.pyc
+__pycache__/
+.Python
+env/
+venv/
+pip-wheel-metadata/
+.tox/
+.coverage
+.cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Django specific
+*.log
+*.pot
+*.mo
+*.sqlite3
+media/
+static_collected/
+staticfiles/
+
+# IDEs and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.flaskenv
+
+# Other common files
+*.swp
+*.swo
+*~
+.bak
+.DS_Store

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="jumbotron text-center bg-white p-5 rounded shadow">
+        <h1 class="display-4">Welcome to PADHAI</h1>
+        <p class="lead">A platform for seamless virtual meetings, learning, and collaboration.</p>
+        <hr class="my-4">
+        <p>Join us to experience better virtual meetings, chat with friends, and more.</p>
+        {% if not user.is_authenticated %}
+            <div class="d-flex justify-content-center gap-3">
+                <a class="btn btn-primary btn-lg" href="{% url 'login' %}" role="button">Student Login</a>
+                <a class="btn btn-info btn-lg" href="{% url 'teacher:login' %}" role="button">Teacher Login</a>
+                <a class="btn btn-secondary btn-lg" href="{% url 'register' %}" role="button">Register</a>
+            </div>
+        {% else %}
+            <a class="btn btn-primary btn-lg" href="{% url 'dashboard' %}" role="button">Go to Dashboard</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

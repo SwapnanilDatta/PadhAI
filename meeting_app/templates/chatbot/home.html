@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}AI Assistant | Home{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="text-center py-5">
+        <h1 class="display-4">AI Assistant</h1>
+        <p class="lead text-muted">Your intelligent conversation partner powered by advanced AI.</p>
+    </div>
+
+    {% if user.is_authenticated %}
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body">
+                        <h2 class="card-title h4">Welcome back, {{ user.username }}!</h2>
+                        <p class="card-text text-muted">Ready to continue the conversation? You can start a new chat or view your history.</p>
+                        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+                            <a href="{% url 'new_chat' %}" class="btn btn-primary btn-lg px-4 gap-3">Start New Chat</a>
+                            <a href="{% url 'chat_list' %}" class="btn btn-outline-secondary btn-lg px-4">View History</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row text-center mt-5">
+            <div class="col-lg-4">
+                <i class="fas fa-comments fa-3x text-primary mb-3"></i>
+                <h3 class="h5">Smart Conversations</h3>
+                <p class="text-muted">Engage in natural, intelligent conversations with our AI assistant.</p>
+            </div>
+            <div class="col-lg-4">
+                <i class="fas fa-history fa-3x text-primary mb-3"></i>
+                <h3 class="h5">Chat History</h3>
+                <p class="text-muted">Access and review all your previous conversations anytime.</p>
+            </div>
+            <div class="col-lg-4">
+                <i class="fas fa-bolt fa-3x text-primary mb-3"></i>
+                <h3 class="h5">Instant Responses</h3>
+                <p class="text-muted">Get quick, helpful responses to your questions and requests.</p>
+            </div>
+        </div>
+    {% else %}
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body">
+                        <h2 class="card-title h4">Get Started</h2>
+                        <p class="card-text text-muted">Please log in to start chatting with our AI assistant and access your conversation history.</p>
+                        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+                            <a href="{% url 'login' %}" class="btn btn-primary btn-lg px-4 gap-3">Login</a>
+                            <a href="{% url 'register' %}" class="btn btn-outline-secondary btn-lg px-4">Sign Up</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

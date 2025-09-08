@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h1 class="h5 mb-0">{{ session.title }}</h1>
+        <a href="{% url 'download_notes' session.id %}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-download"></i> Download Notes
+        </a>
+    </div>
+
+    <div class="card-body">
+        <div class="message-container mb-3 p-3 bg-light rounded" id="message-container">
+            {% for msg in messages %}
+                <div class="message {% if msg.role == 'user' %}sent{% else %}received{% endif %}">
+                    {{ msg.content|linebreaks }}
+                </div>
+            {% endfor %}
+        </div>
+
+        <form method="post" id="chat-form">
+            {% csrf_token %}
+            <div class="input-group">
+                <textarea name="message" id="message-input" class="form-control" rows="1" placeholder="Type your message..." required></textarea>
+                <button class="btn btn-primary" type="submit" id="send-button">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+    <div class="card-footer text-center text-muted small">
+        <p class="mb-0">AI responses are generated and may not always be accurate.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const messageContainer = document.getElementById('message-container');
+    const messageInput = document.getElementById('message-input');
+    const chatForm = document.getElementById('chat-form');
+
+    function scrollToBottom() {
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+    }
+
+    // Scroll to bottom on page load
+    scrollToBottom();
+
+    // Auto-resize textarea
+    messageInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+
+    // Submit on Enter (without Shift)
+    messageInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            chatForm.requestSubmit();
+        }
+    });
+});
+</script>
+{% endblock %}

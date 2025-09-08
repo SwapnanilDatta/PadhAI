@@ -1,0 +1,32 @@
+# render.yaml
+services:
+  - type: web
+    name: meeting-app
+    env: python
+    buildCommand: "pip install -r meeting_app/requirements.txt && python meeting_app/manage_production.py collectstatic --noinput && python meeting_app/manage_production.py migrate"
+    startCommand: "cd meeting_app && daphne meeting_app.asgi_production:application --port $PORT --bind 0.0.0.0"
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: DJANGO_SETTINGS_MODULE
+        value: meeting_app.settings_production
+      - key: ALLOWED_HOSTS
+        value: "test-e0od.onrender.com,.onrender.com,localhost,127.0.0.1"
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://test-e0od.onrender.com,https://*.onrender.com"
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: meeting-app-redis
+          property: connectionString
+    
+  - type: redis
+    name: meeting-app-redis
+    ipAllowList: []
+    
+databases:
+  - name: meeting-app-db
+    databaseName: meeting_app
+    user: meeting_app_user

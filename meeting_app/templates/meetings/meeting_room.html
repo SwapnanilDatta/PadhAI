@@ -1,0 +1,569 @@
+{% extends 'base.html' %}
+
+{% block title %}Meeting Room{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white d-flex justify-content-between">
+                <h5><i class="fas fa-video"></i> Meeting Room</h5>
+                <div>
+                    <button id="toggle-video" class="btn btn-sm btn-success">
+                        <i class="fas fa-video"></i> Camera
+                    </button>
+                    <button id="toggle-audio" class="btn btn-sm btn-warning">
+                        <i class="fas fa-microphone"></i> Mute
+                    </button>
+                    <button id="refresh-media" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-redo"></i> Refresh
+                    </button>
+                    <button id="end-meeting" class="btn btn-sm btn-danger">
+                        <i class="fas fa-phone-slash"></i> End
+                    </button>
+                    <a href="{% url 'chat_room' room.id %}" class="btn btn-sm btn-info">
+                        <i class="fas fa-comment"></i> Chat
+                    </a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="video-container" class="d-flex justify-content-center align-items-center" style="height: 300px; background: #000;">
+                    <video id="local-video" width="320" height="240" autoplay muted></video>
+                    <video id="remote-video" width="320" height="240" autoplay></video>
+                </div>
+            </div>
+        </div>
+
+        <!-- Whiteboard -->
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <h5><i class="fas fa-chalkboard"></i> Whiteboard</h5>
+                <div>
+                    <button id="clear-board" class="btn btn-sm btn-warning">
+                        <i class="fas fa-eraser"></i> Clear
+                    </button>
+                    <select id="brush-size" class="form-select form-select-sm" style="width: auto;">
+                        <option value="2">Thin</option>
+                        <option value="5" selected>Medium</option>
+                        <option value="10">Thick</option>
+                    </select>
+                    <input type="color" id="brush-color" value="#000000" class="form-control form-control-sm" style="width: 50px;">
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <canvas id="whiteboard" width="800" height="400" style="border: 1px solid #ddd; cursor: crosshair;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h6><i class="fas fa-comment"></i> Meeting Chat</h6>
+            </div>
+            <div class="card-body p-0">
+                <div id="meeting-chat" class="chat-container" style="height: 300px;">
+                    <!-- Chat messages will appear here -->
+                </div>
+                <div class="p-3">
+                    <div class="input-group">
+                        <input type="text" id="meeting-chat-input" class="form-control form-control-sm" placeholder="Type message...">
+                        <button id="meeting-chat-send" class="btn btn-sm btn-primary">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const roomId = '{{ room.id }}';
+const username = '{{ user.username }}';
+let localStream = null;
+let remoteStream = null;
+let peerConnection = null;
+let isAudioEnabled = true;
+
+// WebSocket connection for meeting
+const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const meetingSocket = new WebSocket(
+    wsProtocol + '//' + window.location.host + '/ws/meeting/' + roomId + '/'
+);
+
+// Add WebSocket connection status
+meetingSocket.onopen = function(e) {
+    console.log('WebSocket connected');
+    showStatus('Connected to meeting server', 'success');
+};
+
+meetingSocket.onerror = function(e) {
+    console.error('WebSocket error:', e);
+    showStatus('Connection error - whiteboard and video may not work', 'danger');
+};
+
+meetingSocket.onclose = function(e) {
+    console.log('WebSocket disconnected');
+    showStatus('Disconnected from meeting server', 'warning');
+};
+
+// WebRTC Configuration with multiple STUN/TURN servers
+const rtcConfiguration = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        // Free TURN servers (these may have limitations)
+        {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        }
+    ],
+    iceCandidatePoolSize: 10
+};
+
+// Show status messages to user
+function showStatus(message, type = 'info') {
+    const videoContainer = document.getElementById('video-container');
+    const statusDiv = document.createElement('div');
+    statusDiv.className = `alert alert-${type} position-absolute top-0 start-0 m-2`;
+    statusDiv.style.zIndex = '1000';
+    statusDiv.textContent = message;
+    videoContainer.style.position = 'relative';
+    videoContainer.appendChild(statusDiv);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+        if (statusDiv.parentNode) {
+            statusDiv.parentNode.removeChild(statusDiv);
+        }
+    }, 5000);
+}
+
+// Check if getUserMedia is supported
+function checkMediaSupport() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showStatus('Your browser does not support camera access. Please use a modern browser.', 'danger');
+        return false;
+    }
+    return true;
+}
+
+// Initialize media and WebRTC
+async function initializeMedia() {
+    if (!checkMediaSupport()) {
+        return;
+    }
+
+    try {
+        showStatus('Requesting camera and microphone access...', 'info');
+        
+        // First try to get user media
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: 'user'
+            },
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true
+            }
+        });
+        
+        showStatus('Camera and microphone access granted!', 'success');
+        
+        // Set local video
+        const localVideo = document.getElementById('local-video');
+        localVideo.srcObject = localStream;
+        
+        // Create peer connection
+        peerConnection = new RTCPeerConnection(rtcConfiguration);
+        
+        // Add local stream to peer connection
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+        
+        // Handle remote stream
+        peerConnection.ontrack = (event) => {
+            remoteStream = event.streams[0];
+            document.getElementById('remote-video').srcObject = remoteStream;
+            showStatus('Connected to remote participant!', 'success');
+        };
+        
+        // Handle ICE candidates
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                meetingSocket.send(JSON.stringify({
+                    type: 'webrtc_signal',
+                    signal: {
+                        type: 'ice-candidate',
+                        candidate: event.candidate
+                    },
+                    sender: username
+                }));
+            }
+        };
+        
+        // Handle connection state changes
+        peerConnection.onconnectionstatechange = () => {
+            console.log('Connection state:', peerConnection.connectionState);
+            if (peerConnection.connectionState === 'connected') {
+                showStatus('WebRTC connection established!', 'success');
+            } else if (peerConnection.connectionState === 'failed') {
+                showStatus('Connection failed. Attempting to reconnect...', 'warning');
+                // Attempt to restart the connection
+                setTimeout(() => {
+                    restartConnection();
+                }, 2000);
+            } else if (peerConnection.connectionState === 'disconnected') {
+                showStatus('Connection lost. Attempting to reconnect...', 'warning');
+                setTimeout(() => {
+                    restartConnection();
+                }, 1000);
+            }
+        };
+
+        // Handle ICE connection state changes
+        peerConnection.oniceconnectionstatechange = () => {
+            console.log('ICE connection state:', peerConnection.iceConnectionState);
+            if (peerConnection.iceConnectionState === 'failed') {
+                showStatus('ICE connection failed. Restarting...', 'warning');
+                peerConnection.restartIce();
+            }
+        };
+        
+    } catch (error) {
+        console.error('Error accessing media devices:', error);
+        
+        let errorMessage = 'Failed to access camera/microphone. ';
+        
+        if (error.name === 'NotAllowedError') {
+            errorMessage += 'Please allow camera and microphone permissions and refresh the page.';
+        } else if (error.name === 'NotFoundError') {
+            errorMessage += 'No camera or microphone found on your device.';
+        } else if (error.name === 'NotSupportedError') {
+            errorMessage += 'Your browser does not support this feature.';
+        } else if (error.name === 'NotReadableError') {
+            errorMessage += 'Camera/microphone is already in use by another application.';
+        } else if (error.name === 'SecurityError') {
+            errorMessage += 'Security error. Please use HTTPS or localhost.';
+        } else {
+            errorMessage += error.message;
+        }
+        
+        showStatus(errorMessage, 'danger');
+        
+        // Show fallback message in video container
+        const videoContainer = document.getElementById('video-container');
+        videoContainer.innerHTML = `
+            <div class="text-center text-white">
+                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                <h5>Camera Access Failed</h5>
+                <p>${errorMessage}</p>
+                <button class="btn btn-warning" onclick="initializeMedia()">
+                    <i class="fas fa-redo"></i> Try Again
+                </button>
+            </div>
+        `;
+    }
+}
+
+// WebSocket message handling
+meetingSocket.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    
+    if (data.type === 'webrtc_signal' && data.sender !== username) {
+        handleWebRTCSignal(data.signal);
+    } else if (data.type === 'whiteboard_update') {
+        drawOnCanvas(data.data);
+    }
+};
+
+// Handle WebRTC signaling
+async function handleWebRTCSignal(signal) {
+    try {
+        if (signal.type === 'offer') {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            
+            meetingSocket.send(JSON.stringify({
+                type: 'webrtc_signal',
+                signal: {
+                    type: 'answer',
+                    sdp: answer.sdp
+                },
+                sender: username
+            }));
+            
+        } else if (signal.type === 'answer') {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
+            
+        } else if (signal.type === 'ice-candidate') {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        }
+    } catch (error) {
+        console.error('Error handling WebRTC signal:', error);
+    }
+}
+
+// Create offer (initiating peer)
+async function createOffer() {
+    try {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        
+        meetingSocket.send(JSON.stringify({
+            type: 'webrtc_signal',
+            signal: {
+                type: 'offer',
+                sdp: offer.sdp
+            },
+            sender: username
+        }));
+    } catch (error) {
+        console.error('Error creating offer:', error);
+    }
+}
+
+// Restart connection function
+async function restartConnection() {
+    try {
+        showStatus('Restarting connection...', 'info');
+        
+        // Close existing peer connection
+        if (peerConnection) {
+            peerConnection.close();
+        }
+        
+        // Clear remote video
+        document.getElementById('remote-video').srcObject = null;
+        
+        // Recreate peer connection
+        peerConnection = new RTCPeerConnection(rtcConfiguration);
+        
+        // Re-add local stream
+        if (localStream) {
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+        }
+        
+        // Re-setup event handlers
+        peerConnection.ontrack = (event) => {
+            remoteStream = event.streams[0];
+            document.getElementById('remote-video').srcObject = remoteStream;
+            showStatus('Reconnected to remote participant!', 'success');
+        };
+        
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                meetingSocket.send(JSON.stringify({
+                    type: 'webrtc_signal',
+                    signal: {
+                        type: 'ice-candidate',
+                        candidate: event.candidate
+                    },
+                    sender: username
+                }));
+            }
+        };
+        
+        peerConnection.onconnectionstatechange = () => {
+            console.log('Connection state:', peerConnection.connectionState);
+            if (peerConnection.connectionState === 'connected') {
+                showStatus('WebRTC connection re-established!', 'success');
+            } else if (peerConnection.connectionState === 'failed') {
+                showStatus('Reconnection failed. Please refresh the page.', 'danger');
+            }
+        };
+
+        peerConnection.oniceconnectionstatechange = () => {
+            console.log('ICE connection state:', peerConnection.iceConnectionState);
+            if (peerConnection.iceConnectionState === 'failed') {
+                showStatus('ICE connection failed. Restarting...', 'warning');
+                peerConnection.restartIce();
+            }
+        };
+        
+        // Create new offer
+        setTimeout(createOffer, 1000);
+        
+    } catch (error) {
+        console.error('Error restarting connection:', error);
+        showStatus('Failed to restart connection. Please refresh the page.', 'danger');
+    }
+}
+
+// Video controls
+document.getElementById('toggle-video').addEventListener('click', function() {
+    if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+            videoTrack.enabled = !videoTrack.enabled;
+            this.innerHTML = videoTrack.enabled ? 
+                '<i class="fas fa-video"></i> Camera' : 
+                '<i class="fas fa-video-slash"></i> Camera Off';
+            this.className = videoTrack.enabled ? 
+                'btn btn-sm btn-success' : 
+                'btn btn-sm btn-danger';
+        }
+    }
+});
+
+// Audio controls
+document.getElementById('toggle-audio').addEventListener('click', function() {
+    if (localStream) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            isAudioEnabled = audioTrack.enabled;
+            this.innerHTML = isAudioEnabled ? 
+                '<i class="fas fa-microphone"></i> Mute' : 
+                '<i class="fas fa-microphone-slash"></i> Unmute';
+            this.className = isAudioEnabled ? 
+                'btn btn-sm btn-warning' : 
+                'btn btn-sm btn-danger';
+        }
+    }
+});
+
+// Refresh media
+document.getElementById('refresh-media').addEventListener('click', function() {
+    // Stop existing streams
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
+    
+    // Clear video elements
+    document.getElementById('local-video').srcObject = null;
+    document.getElementById('remote-video').srcObject = null;
+    
+    // Reinitialize
+    initializeMedia();
+});
+
+// End meeting
+document.getElementById('end-meeting').addEventListener('click', function() {
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
+    if (peerConnection) {
+        peerConnection.close();
+    }
+    window.location.href = "{% url 'dashboard' %}";
+});
+
+// Whiteboard functionality
+const canvas = document.getElementById('whiteboard');
+const ctx = canvas.getContext('2d');
+let isDrawing = false;
+let lastX = 0;
+let lastY = 0;
+
+// Canvas event listeners
+canvas.addEventListener('mousedown', (e) => {
+    isDrawing = true;
+    [lastX, lastY] = [e.offsetX, e.offsetY];
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!isDrawing) return;
+    
+    const currentX = e.offsetX;
+    const currentY = e.offsetY;
+    
+    // Draw locally
+    drawLine(lastX, lastY, currentX, currentY);
+    
+    // Send to other participants
+    meetingSocket.send(JSON.stringify({
+        type: 'whiteboard_draw',
+        data: {
+            type: 'draw',
+            fromX: lastX,
+            fromY: lastY,
+            toX: currentX,
+            toY: currentY,
+            color: document.getElementById('brush-color').value,
+            size: document.getElementById('brush-size').value
+        }
+    }));
+    
+    [lastX, lastY] = [currentX, currentY];
+});
+
+canvas.addEventListener('mouseup', () => isDrawing = false);
+canvas.addEventListener('mouseout', () => isDrawing = false);
+
+// Drawing functions
+function drawLine(x1, y1, x2, y2, color = '#000000', size = 5) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+}
+
+function drawOnCanvas(data) {
+    if (data.type === 'draw') {
+        drawLine(data.fromX, data.fromY, data.toX, data.toY, data.color, data.size);
+    } else if (data.type === 'clear') {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+}
+
+// Clear whiteboard
+document.getElementById('clear-board').addEventListener('click', function() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    meetingSocket.send(JSON.stringify({
+        type: 'whiteboard_draw',
+        data: { type: 'clear' }
+    }));
+});
+
+// Initialize everything
+initializeMedia().then(() => {
+    // Auto-create offer after a short delay
+    setTimeout(createOffer, 1000);
+});
+
+// Meeting chat functionality
+const meetingChatInput = document.getElementById('meeting-chat-input');
+const meetingChatSend = document.getElementById('meeting-chat-send');
+const meetingChatContainer = document.getElementById('meeting-chat');
+
+// Note: You could extend this to use the same chat WebSocket or create a separate one
+// For now, this is a placeholder for meeting-specific chat
+meetingChatSend.addEventListener('click', function() {
+    const message = meetingChatInput.value.trim();
+    if (message) {
+        // Add message to local chat
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message sent';
+        messageDiv.innerHTML = `<strong>You:</strong> ${message}`;
+        meetingChatContainer.appendChild(messageDiv);
+        meetingChatInput.value = '';
+        meetingChatContainer.scrollTop = meetingChatContainer.scrollHeight;
+    }
+});
+
+meetingChatInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        meetingChatSend.click();
+    }
+});
+</script>
+{% endblock %}
